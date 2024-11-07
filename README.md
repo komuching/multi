@@ -14,12 +14,23 @@ Paket Python yang Diperlukan: Instalasi beberapa paket, termasuk asyncio, loguru
 ---------------------------------------------------------------------------------------
 Install:
 ```
-git clone https://github.com/komuching/multi.git
-cd multi
+sudo apt update && sudo apt upgrade -y
 ```  
 ```
-pip install asyncio loguru uuid fake_useragent websockets-proxy
+sudo apt install pip -y
+```
+```
+sudo apt install python3 python3-pip -y
 ```  
+```
+pip install requests loguru websockets==12.0 fake_useragent websockets_proxy asyncio loguru uuid fake_useragent websockets-proxy
+
+```
+```
+git clone https://github.com/komuching/multi.git
+cd multi
+```
+  
 ```
 pip install -r requirements.txt
 ```
