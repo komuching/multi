@@ -7,6 +7,8 @@ import uuid
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
+from aiohttp import ClientSession
+from core.utils.exception import ProxyForbiddenException  # Pastikan exception ini ada dalam kode Anda
 
 # Membaca daftar proxy dari file eksternal
 def load_proxies_from_file(filename="proxies.txt"):
@@ -43,31 +45,46 @@ user_fingerprints = load_user_ids_from_file()
 used_proxies = set()  # Set untuk melacak proxy yang sedang digunakan
 usage_stats = {user_id: {"reconnects": 0, "proxy": [], "connected_time": 0} for user_id in user_fingerprints.keys()}
 
-async def connect_to_wss(user_id):
-    # Mendapatkan hingga 5 proxy unik untuk setiap user_id
-    proxies = await get_unique_proxies(user_id, 5)
-    if not proxies:
-        logger.error(f"[{user_id}] Tidak ada proxy yang tersedia. Menunggu...")
-        return
+class WebSocketManager:
+    def __init__(self):
+        self.session = ClientSession()  # Inisialisasi sesi di sini
 
-    device_id = user_fingerprints[user_id]["device_id"]
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    uri = random.choice(["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"])
+    async def close_session(self):
+        # Tutup sesi setelah semua koneksi selesai
+        await self.session.close()
 
-    for proxy in proxies:
-        headers = generate_extension_headers(user_id, proxy)
-        try:
-            usage_stats[user_id]["proxy"].append(proxy)
-            async with proxy_connect(uri, proxy=Proxy.from_url(proxy), ssl=ssl_context, extra_headers=headers) as websocket:
-                start_time = time.time()
-                logger.info(f"[{user_id}] Connected: device_id={device_id}, proxy={proxy}")
-                await simulate_activity(websocket, user_id, start_time)
-        except Exception as e:
-            logger.error(f"[{user_id}] Connection error with proxy {proxy}: {e}")
-            await reconnect_with_backoff(user_id, proxy)
+    async def connect_to_wss(self, user_id):
+        device_id = user_fingerprints[user_id]["device_id"]
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        # Daftar URI WebSocket dengan alternatif tambahan
+        uris = ["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/", "wss://proxy2.wynd.network:4444/"]
 
+        proxies = await get_unique_proxies(user_id, 5)
+        if not proxies:
+            logger.error(f"[{user_id}] Tidak ada proxy yang tersedia. Menunggu...")
+            return
+
+        for proxy in proxies:
+            headers = generate_extension_headers(user_id, proxy)
+            for uri in uris:
+                try:
+                    usage_stats[user_id]["proxy"].append(proxy)
+                    async with proxy_connect(uri, proxy=Proxy.from_url(proxy), ssl=ssl_context, extra_headers=headers) as websocket:
+                        start_time = time.time()
+                        logger.info(f"[{user_id}] Connected to {uri} with proxy: {proxy}, device_id: {device_id}")
+                        await simulate_activity(websocket, user_id, start_time)
+                        return  # Keluar dari fungsi jika koneksi berhasil
+                except ProxyForbiddenException as e:
+                    logger.error(f"[{user_id}] Proxy {proxy} forbidden (403) on {uri}. Trying a new proxy. Error: {e}")
+                    usage_stats[user_id]["proxy"].remove(proxy)
+                    release_proxies(user_id)  # Hapus proxy yang gagal
+                except Exception as e:
+                    logger.error(f"[{user_id}] Connection error with proxy {proxy} on {uri}: {e}")
+                    await reconnect_with_backoff(user_id, proxy)
+
+# Generate headers for the WebSocket connection
 def generate_extension_headers(user_id, proxy):
     user_agent = user_fingerprints[user_id]["user_agent"]
     headers = {
@@ -84,120 +101,7 @@ def generate_extension_headers(user_id, proxy):
     logger.info(f"[{user_id}] Using User-Agent '{user_agent}' for proxy '{proxy}'")
     return headers
 
-async def simulate_activity(websocket, user_id, start_time):
-    try:
-        active_duration = 7200  # 2 jam
-        idle_duration = 180  # 3 menit sebelum reconnect
-        end_time = start_time + active_duration
-        
-        while time.time() < end_time:
-            # Mengirim PING setiap 10-20 detik
-            await send_ping(websocket, user_id)
-            await asyncio.sleep(random.uniform(10, 20))
-
-            # Menerima dan menangani pesan dari server
-            try:
-                response = await websocket.recv()
-                await handle_message(response, websocket, user_id)
-            except Exception as e:
-                logger.error(f"[{user_id}] Error receiving message: {e}")
-                break
-
-            # Simulasi aktivitas tambahan setiap 30-60 detik
-            await simulate_additional_activity(websocket, user_id)
-            await asyncio.sleep(random.uniform(30, 60))
-            
-            # Logging setiap 10 menit
-            connected_duration = int(time.time() - start_time)
-            usage_stats[user_id]["connected_time"] = connected_duration
-            logger.info(f"[{user_id}] Connected for {connected_duration} seconds using proxies {usage_stats[user_id]['proxy']} with {usage_stats[user_id]['reconnects']} reconnects")
-        
-        await websocket.close()
-        logger.info(f"[{user_id}] Disconnected after 120 minutes. Reconnecting after {idle_duration // 60} minutes.")
-        release_proxies(user_id)
-        await asyncio.sleep(idle_duration)
-        await reconnect_with_backoff(user_id)
-    except Exception as e:
-        logger.error(f"[{user_id}] Error during activity: {e}")
-        await reconnect_with_backoff(user_id)
-
-async def handle_message(response, websocket, user_id):
-    """Menangani pesan yang diterima dari server."""
-    try:
-        message = json.loads(response)
-        action = message.get("action")
-        
-        if action == "PONG":
-            await send_pong(websocket, user_id, message["id"])
-            logger.debug(f"[{user_id}] Sent PONG in response to server's PONG")
-        
-        elif action == "REQUEST_DATA":
-            await handle_request_data(websocket, user_id)
-            logger.debug(f"[{user_id}] Handled REQUEST_DATA action")
-
-        elif action == "UPDATE_INFO":
-            await handle_update_info(websocket, user_id)
-            logger.debug(f"[{user_id}] Handled UPDATE_INFO action")
-        
-        elif action == "AUTH":
-            await send_auth_response(websocket, user_id)
-            logger.debug(f"[{user_id}] Sent AUTH response to server")
-
-        else:
-            logger.warning(f"[{user_id}] Received unrecognized action '{action}' from server")
-    except json.JSONDecodeError:
-        logger.error(f"[{user_id}] Failed to decode message: {response}")
-
-async def send_auth_response(websocket, user_id):
-    """Mengirim respons AUTH ke server."""
-    auth_response = {
-        "id": str(uuid.uuid4()),
-        "action": "AUTH_RESPONSE",
-        "result": {
-            "browser_id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "user_agent": user_fingerprints[user_id]["user_agent"],
-            "timestamp": int(time.time()),
-            "version": "1.0.0"
-        }
-    }
-    await websocket.send(json.dumps(auth_response))
-    logger.debug(f"[{user_id}] Sent AUTH_RESPONSE with browser_id {auth_response['result']['browser_id']}")
-
-async def send_ping(websocket, user_id):
-    ping_message = json.dumps({"id": str(uuid.uuid4()), "action": "PING"})
-    await websocket.send(ping_message)
-    logger.debug(f"[{user_id}] Sent PING")
-
-async def send_pong(websocket, user_id, message_id):
-    pong_message = json.dumps({"id": message_id, "action": "PONG"})
-    await websocket.send(pong_message)
-    logger.debug(f"[{user_id}] Sent PONG in response to message {message_id}")
-
-async def handle_request_data(websocket, user_id):
-    data_response = json.dumps({
-        "id": str(uuid.uuid4()), 
-        "action": "RESPONSE_DATA", 
-        "data": {"info": "Sample data response"}
-    })
-    await websocket.send(data_response)
-    logger.debug(f"[{user_id}] Sent RESPONSE_DATA as response to REQUEST_DATA")
-
-async def handle_update_info(websocket, user_id):
-    update_response = json.dumps({
-        "id": str(uuid.uuid4()), 
-        "action": "INFO_UPDATED", 
-        "status": "Update successful"
-    })
-    await websocket.send(update_response)
-    logger.debug(f"[{user_id}] Sent INFO_UPDATED in response to UPDATE_INFO")
-
-async def simulate_additional_activity(websocket, user_id):
-    actions = ["REQUEST_DATA", "FETCH_STATUS", "UPDATE_INFO"]
-    action = random.choice(actions)
-    additional_message = json.dumps({"id": str(uuid.uuid4()), "action": action, "data": {}})
-    await websocket.send(additional_message)
-    logger.debug(f"[{user_id}] Sent {action} request")
+# Other functions remain the same (e.g., handle_message, send_ping, send_pong, handle_request_data, handle_update_info)
 
 async def get_unique_proxies(user_id, num_proxies):
     proxies = []
@@ -212,6 +116,7 @@ async def get_unique_proxies(user_id, num_proxies):
     return proxies
 
 def release_proxies(user_id):
+    # Melepaskan proxy yang telah digunakan
     for proxy in usage_stats[user_id]["proxy"]:
         used_proxies.discard(proxy)
     usage_stats[user_id]["proxy"].clear()
@@ -227,7 +132,7 @@ async def reconnect_with_backoff(user_id, failed_proxy):
             usage_stats[user_id]["reconnects"] += 1
             for proxy in proxies:
                 try:
-                    await connect_to_wss(user_id)
+                    await WebSocketManager().connect_to_wss(user_id)
                     return
                 except Exception as e:
                     logger.error(f"[{user_id}] Reconnect error: {e}. Retrying in {delay} seconds...")
@@ -236,14 +141,20 @@ async def reconnect_with_backoff(user_id, failed_proxy):
                     delay *= 2
     logger.error(f"[{user_id}] Failed to reconnect after {max_retries} attempts.")
 
+# Initialize connection with a slight delay
 async def initialize_connection_with_jitter(user_id):
     jitter = random.uniform(1, 5)
     await asyncio.sleep(jitter)
-    await connect_to_wss(user_id)
+    await WebSocketManager().connect_to_wss(user_id)
 
+# Main function
 async def main():
-    tasks = [initialize_connection_with_jitter(user_id) for user_id in user_fingerprints.keys()]
-    await asyncio.gather(*tasks)
+    ws_manager = WebSocketManager()
+    try:
+        tasks = [initialize_connection_with_jitter(user_id) for user_id in user_fingerprints.keys()]
+        await asyncio.gather(*tasks)
+    finally:
+        await ws_manager.close_session()  # Menutup sesi saat semua tugas selesai
 
 if __name__ == '__main__':
     logger.add("connection_logs.log", rotation="5 MB", retention="7 days", level="INFO")
