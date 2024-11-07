@@ -8,7 +8,6 @@ from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
 from aiohttp import ClientSession
-from core.utils.exception import ProxyForbiddenException  # Pastikan exception ini ada dalam kode Anda
 
 # Membaca daftar proxy dari file eksternal
 def load_proxies_from_file(filename="proxies.txt"):
@@ -76,10 +75,6 @@ class WebSocketManager:
                         logger.info(f"[{user_id}] Connected to {uri} with proxy: {proxy}, device_id: {device_id}")
                         await simulate_activity(websocket, user_id, start_time)
                         return  # Keluar dari fungsi jika koneksi berhasil
-                except ProxyForbiddenException as e:
-                    logger.error(f"[{user_id}] Proxy {proxy} forbidden (403) on {uri}. Trying a new proxy. Error: {e}")
-                    usage_stats[user_id]["proxy"].remove(proxy)
-                    release_proxies(user_id)  # Hapus proxy yang gagal
                 except Exception as e:
                     logger.error(f"[{user_id}] Connection error with proxy {proxy} on {uri}: {e}")
                     await reconnect_with_backoff(user_id, proxy)
@@ -100,8 +95,6 @@ def generate_extension_headers(user_id, proxy):
     }
     logger.info(f"[{user_id}] Using User-Agent '{user_agent}' for proxy '{proxy}'")
     return headers
-
-# Other functions remain the same (e.g., handle_message, send_ping, send_pong, handle_request_data, handle_update_info)
 
 async def get_unique_proxies(user_id, num_proxies):
     proxies = []
