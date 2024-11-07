@@ -43,7 +43,7 @@ isi proxies.txt DAN user_ids.txt Sesuai Kebutuhan..
 ---------------------
 Mulai Bot
 ```
-python bot.py
+python3 bot.py
 ```
 
 Credits: @Qodratjr (x)
