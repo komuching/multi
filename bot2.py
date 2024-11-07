@@ -7,9 +7,23 @@ import uuid
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
-
+import platform
 from asyncio import Lock  # Tambahkan Lock untuk sinkronisasi
 from collections import deque
+
+# Fungsi untuk memilih User-Agent Chrome sesuai dengan platform
+def get_chrome_user_agent():
+    ua = UserAgent()
+    system_platform = platform.system()
+    
+    if system_platform == "Windows":
+        return ua.chrome + " Windows"  # Contoh tambahan User-Agent Windows
+    elif system_platform == "Linux":
+        return ua.chrome + " Linux"  # Contoh tambahan User-Agent Linux
+    elif system_platform == "Darwin":
+        return ua.chrome + " Mac"  # Contoh tambahan User-Agent Mac
+    else:
+        return ua.chrome  # Default
 
 # Membaca daftar proxy dari file eksternal
 def load_proxies_from_file(filename="proxies.txt"):
@@ -32,7 +46,7 @@ def load_user_ids_from_file(filename="user_ids.txt"):
                 if user_id:
                     user_fingerprints[user_id] = {
                         "device_id": str(uuid.uuid4()),
-                        "user_agent": UserAgent().chrome  # Menghasilkan User-Agent Chrome acak
+                        "user_agent": get_chrome_user_agent()  # Mendapatkan User-Agent Chrome sesuai platform
                     }
         logger.info(f"Memuat {len(user_fingerprints)} user ID dari {filename}")
     except FileNotFoundError:
