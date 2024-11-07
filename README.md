@@ -42,9 +42,15 @@ isi proxies.txt DAN user_ids.txt Sesuai Kebutuhan..
 
 ---------------------
 Mulai Bot
+
 ```
 python3 bot.py
 ```
+ Jika Terasa Berat:
+```
+python3 bot2.py
+```
 
+-------------------------------------------------------------------------------------
 Credits: @Qodratjr (x)
 Join: https://t.me/komucing
