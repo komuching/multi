@@ -8,22 +8,42 @@ from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
 
-# Konfigurasi User-Agent dasar untuk hanya menggunakan Chrome
-user_agent = UserAgent()
-user_fingerprints = {
-    "user1": {"device_id": str(uuid.uuid4())},
-    "user2": {"device_id": str(uuid.uuid4())},
-    "user3": {"device_id": str(uuid.uuid4())},
-    "user4": {"device_id": str(uuid.uuid4())},
-    "user5": {"device_id": str(uuid.uuid4())},
-}
+# Membaca daftar proxy dari file eksternal
+def load_proxies_from_file(filename="proxies.txt"):
+    proxy_list = []
+    try:
+        with open(filename, "r") as file:
+            proxy_list = [line.strip() for line in file if line.strip()]
+        logger.info(f"Loaded {len(proxy_list)} proxies from {filename}")
+    except FileNotFoundError:
+        logger.error(f"File {filename} not found. Please create it and add your proxies.")
+    return proxy_list
 
-# Pool proxy dengan 20 proxy yang tersedia
-proxy_list = [f"proxy{i}" for i in range(1, 21)]
+# Membaca daftar user ID dari file eksternal dan membuat device_id untuk setiap ID
+def load_user_ids_from_file(filename="user_ids.txt"):
+    user_fingerprints = {}
+    try:
+        with open(filename, "r") as file:
+            for line in file:
+                user_id = line.strip()
+                if user_id:
+                    user_fingerprints[user_id] = {"device_id": str(uuid.uuid4())}
+        logger.info(f"Loaded {len(user_fingerprints)} user IDs from {filename}")
+    except FileNotFoundError:
+        logger.error(f"File {filename} not found. Please create it and add your user IDs.")
+    return user_fingerprints
+
+# Memuat proxy_list dan user_fingerprints dari file eksternal
+proxy_list = load_proxies_from_file()
+user_fingerprints = load_user_ids_from_file()
+
 used_proxies = set()  # Set untuk melacak proxy yang sedang digunakan
 
 # Statistik penggunaan untuk setiap user_id
 usage_stats = {user_id: {"reconnects": 0, "proxy": [], "connected_time": 0} for user_id in user_fingerprints.keys()}
+
+# Konfigurasi User-Agent dasar untuk hanya menggunakan Chrome
+user_agent = UserAgent()
 
 # Fungsi untuk membuat header acak khusus Chrome
 def generate_extension_headers(user_id, proxy):
