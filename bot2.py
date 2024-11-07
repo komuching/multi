@@ -120,7 +120,7 @@ async def simulate_activity(websocket, user_id, start_time):
         
         await websocket.close()
         logger.info(f"[{user_id}] Terputus setelah 120 menit. Menyambung kembali setelah {idle_duration // 60} menit.")
-        release_proxies(user_id)
+        await release_proxies(user_id)
         await asyncio.sleep(idle_duration)
         await reconnect_with_backoff(user_id)
     except Exception as e:
@@ -143,7 +143,7 @@ async def get_unique_proxies(user_id, num_proxies):
             await asyncio.sleep(0.1)
     return proxies
 
-def release_proxies(user_id):
+async def release_proxies(user_id):
     async with proxy_lock:  # Gunakan lock untuk sinkronisasi akses
         for proxy in usage_stats[user_id]["proxy"]:
             used_proxies.discard(proxy)
