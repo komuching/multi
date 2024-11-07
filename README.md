@@ -1,5 +1,5 @@
 **Multi Grass**
-Multi Grass adalah bot yang dirancang untuk mensimulasikan aktivitas ekstensi Chrome, dengan koneksi yang diatur agar tampak seperti interaksi ekstensi asli di browser Chrome. Setiap user ID dapat menggunakan beberapa proxy berbeda secara bersamaan dengan user-agent berbasis Chrome. Bot ini menggunakan WebSocket untuk berkomunikasi dengan server eksternal dan meniru perilaku yang alami.
+adalah bot yang dirancang untuk mensimulasikan aktivitas ekstensi Chrome, dengan koneksi yang diatur agar tampak seperti interaksi ekstensi asli di browser Chrome. Setiap user ID dapat menggunakan beberapa proxy berbeda secara bersamaan dengan user-agent berbasis Chrome. Bot ini menggunakan WebSocket untuk berkomunikasi dengan server eksternal dan meniru perilaku yang alami.
    
 **Fitur Utama**
 User-Agent berbasis Chrome yang Unik: Setiap user ID menggunakan user-agent berbasis Chrome yang unik untuk meniru ekstensi asli.
