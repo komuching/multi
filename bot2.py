@@ -8,42 +8,40 @@ from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
 
-# Metadata ekstensi yang harus konsisten
-EXTENSION_ID = "lkbnfiajjmbhnfledhphioinpickokdi"
-EXTENSION_VERSION = "4.26.2"
-
-# Mengatur User-Agent secara acak untuk koneksi
-user_agent = UserAgent()
-platforms = ["Windows", "Linux", "Mac"]
+# User-Agent generik untuk PC (Windows, Ubuntu, Mac)
+user_agent = UserAgent(os=random.choice(["windows", "linux", "mac"]), platforms="pc", browsers="chrome")
 
 async def connect_to_wss(socks5_proxy, user_id):
-    # ID perangkat unik untuk setiap proxy
-    device_id = str(uuid.uuid4())
-    # Random platform untuk User-Agent
-    platform = random.choice(platforms)
-    random_user_agent = user_agent.random
+    # Device ID random untuk setiap proxy
+    device_id = str(uuid.uuid3(uuid.NAMESPACE_DNS, socks5_proxy))
+    logger.info(f"[{user_id}] Device ID: {device_id} | Proxy: {socks5_proxy}")
 
-    logger.info(f"[{user_id}] Device ID: {device_id} | Platform: {platform}")
-    
     while True:
         try:
-            # Penundaan acak sebelum koneksi untuk menghindari deteksi bot
+            # Penundaan acak untuk menghindari deteksi bot
             await asyncio.sleep(random.uniform(1, 5)) 
 
+            # User-Agent generik
+            random_user_agent = user_agent.random
+            
+            # Header untuk desktop
             custom_headers = {
                 "User-Agent": random_user_agent,
-                "Origin": f"chrome-extension://{EXTENSION_ID}"
+                "Origin": "https://example.com",  # Header generik yang valid
+                "Referer": "https://example.com",  # Tambahkan referensi desktop yang masuk akal
+                "Sec-WebSocket-Extensions": "permessage-deflate; client_max_window_bits"
             }
 
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
             
+            # Pilihan URI WebSocket
             urilist = ["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"]
             uri = random.choice(urilist)
             server_hostname = "proxy.wynd.network"
             proxy = Proxy.from_url(socks5_proxy)
-            
+
             logger.info(f"[{user_id}] Connecting to {uri} using proxy {socks5_proxy}")
             
             async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname=server_hostname,
@@ -53,7 +51,7 @@ async def connect_to_wss(socks5_proxy, user_id):
                 async def send_ping():
                     while True:
                         ping_message = json.dumps(
-                            {"id": str(uuid.uuid4()), "version": EXTENSION_VERSION, "action": "PING", "data": {}}
+                            {"id": str(uuid.uuid4()), "version": "1.0.0", "action": "PING", "data": {}}
                         )
                         logger.debug(f"[{user_id}] Sending PING: {ping_message}")
                         try:
@@ -82,9 +80,9 @@ async def connect_to_wss(socks5_proxy, user_id):
                                     "user_id": user_id,
                                     "user_agent": custom_headers['User-Agent'],
                                     "timestamp": int(time.time()),
-                                    "device_type": "extension",
-                                    "version": EXTENSION_VERSION,
-                                    "extension_id": EXTENSION_ID
+                                    "device_type": "extension",  # Metadata disamakan dengan Script 1
+                                    "version": "4.26.2",  # Sama seperti Script 1
+                                    "extension_id": "lkbnfiajjmbhnfledhphioinpickokdi"  # Sama seperti Script 1
                                 }
                             }
                             logger.debug(f"[{user_id}] Sending AUTH response: {auth_response}")
