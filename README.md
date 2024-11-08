@@ -41,10 +41,14 @@ pip install -r requirements.txt
 isi proxies.txt DAN user_ids.txt Sesuai Kebutuhan..   
 
 ---------------------
-Mulai Bot
-
+Versi Desktop:
 ```
 python3 bot.py
+```
+-------------------------
+Versi Node:
+```
+python3 bot2.py
 ```
 
 
