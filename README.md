@@ -46,10 +46,7 @@ Mulai Bot
 ```
 python3 bot.py
 ```
- Jika Terasa Berat:
-```
-python3 bot2.py
-```
+
 
 -------------------------------------------------------------------------------------
 Credits: @Qodratjr (x)
