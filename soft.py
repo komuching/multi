@@ -52,24 +52,19 @@ async def send_session_report(websocket, start_time, end_time, user_id):
         }
     }
     logger.info(f"[{user_id}] Sending session report: {session_data}")
-    await websocket.send(json.dumps(session_data))
-
-# Flag global untuk soft disconnect
-soft_disconnect_flag = False
+    try:
+        await websocket.send(json.dumps(session_data))
+    except Exception as e:
+        logger.error(f"[{user_id}] Failed to send session report: {e}")
 
 async def connect_to_wss(socks5_proxy, user_id):
-    global soft_disconnect_flag
-
-    # Pilih User-Agent acak untuk proxy ini
     user_agent = random.choice(USER_AGENT_LIST)
-
-    # Generate Device ID acak untuk setiap proxy
     device_id = str(uuid.uuid4())
     logger.info(f"[{user_id}] Device ID: {device_id} | Proxy: {socks5_proxy} | User-Agent: {user_agent}")
 
     session_start_time = time.time()  # Catat waktu mulai sesi
 
-    while not soft_disconnect_flag:
+    while True:
         try:
             # Penundaan acak untuk menghindari deteksi bot
             await asyncio.sleep(random.uniform(1, 5))
@@ -101,7 +96,7 @@ async def connect_to_wss(socks5_proxy, user_id):
 
                 # Kirim pesan PING setiap 10 detik
                 async def send_ping():
-                    while not soft_disconnect_flag:
+                    while True:
                         ping_message = json.dumps(
                             {"id": str(uuid.uuid4()), "version": "4.28.2", "action": "PING", "data": {}}
                         )
@@ -116,7 +111,7 @@ async def connect_to_wss(socks5_proxy, user_id):
                 # Mulai tugas PING
                 ping_task = asyncio.create_task(send_ping())
 
-                while not soft_disconnect_flag:
+                while True:
                     try:
                         response = await websocket.recv()
                         message = json.loads(response)
@@ -145,19 +140,13 @@ async def connect_to_wss(socks5_proxy, user_id):
                         logger.warning(f"[{user_id}] Error receiving message: {e}")
                         break
 
-                # Akhiri tugas PING jika soft disconnect diaktifkan
+                # Akhiri tugas PING jika loop berhenti
                 ping_task.cancel()
                 break
 
         except Exception as e:
             logger.error(f"[{user_id}] Connection error: {e}")
             logger.info(f"[{user_id}] Retrying with proxy: {socks5_proxy}")
-
-    logger.info(f"[{user_id}] Soft disconnect initiated. Closing connection.")
-    # Kirim laporan akhir sesi
-    session_end_time = time.time()
-    await send_session_report(websocket, session_start_time, session_end_time, user_id)
-
 
 async def main():
     # Membaca file user ID
@@ -189,6 +178,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Aktifkan soft disconnect saat KeyboardInterrupt (Ctrl+C)
-        soft_disconnect_flag = True
-        logger.info("Soft disconnect activated. Please wait for graceful shutdown.")
+        logger.info("Bot terminated by user.")
