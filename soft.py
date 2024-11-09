@@ -9,36 +9,7 @@ from websockets_proxy import Proxy, proxy_connect
 
 # Daftar User-Agent statis (baru, 30 User-Agent)
 USER_AGENT_LIST = [
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
+    # User-Agent list here...
 ]
 
 # Fungsi untuk mengirim laporan sesi terakhir
@@ -57,28 +28,24 @@ async def send_session_report(websocket, start_time, end_time, user_id):
     except Exception as e:
         logger.error(f"[{user_id}] Failed to send session report: {e}")
 
-async def connect_to_wss(socks5_proxy, user_id):
+async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
     device_id = str(uuid.uuid4())
     logger.info(f"[{user_id}] Device ID: {device_id} | Proxy: {socks5_proxy} | User-Agent: {user_agent}")
 
-    session_start_time = time.time()  # Catat waktu mulai sesi
+    session_start_time = time.time()
+    retries = 0
 
-    while True:
+    while retries < max_retries:
         try:
-            # Penundaan acak untuk menghindari deteksi bot
+            logger.debug(f"[{user_id}] Sleeping before reconnecting.")
             await asyncio.sleep(random.uniform(1, 5))
 
-            # Header dengan User-Agent
-            custom_headers = {
-                "User-Agent": user_agent
-            }
-
+            custom_headers = {"User-Agent": user_agent}
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
 
-            # Pilihan URI WebSocket
             urilist = ["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"]
             uri = random.choice(urilist)
             server_hostname = "proxy.wynd.network"
@@ -89,12 +56,11 @@ async def connect_to_wss(socks5_proxy, user_id):
             async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname=server_hostname,
                                      extra_headers=custom_headers) as websocket:
 
-                # Kirim laporan sesi sebelumnya
+                logger.debug(f"[{user_id}] Successfully connected to {uri}")
                 session_end_time = time.time()
                 await send_session_report(websocket, session_start_time, session_end_time, user_id)
-                session_start_time = time.time()  # Perbarui waktu mulai sesi baru
+                session_start_time = time.time()
 
-                # Kirim pesan PING setiap 10 detik
                 async def send_ping():
                     while True:
                         ping_message = json.dumps(
@@ -106,18 +72,16 @@ async def connect_to_wss(socks5_proxy, user_id):
                         except Exception as e:
                             logger.warning(f"[{user_id}] send_ping encountered an error: {e}")
                             break
-                        await asyncio.sleep(10)  # Interval PING: 10 detik
+                        await asyncio.sleep(10)
 
-                # Mulai tugas PING
                 ping_task = asyncio.create_task(send_ping())
 
                 while True:
                     try:
-                        response = await websocket.recv()
+                        response = await asyncio.wait_for(websocket.recv(), timeout=20)
                         message = json.loads(response)
                         logger.info(f"[{user_id}] Received: {message}")
 
-                        # Menangani AUTH
                         if message.get("action") == "AUTH":
                             auth_response = {
                                 "id": message["id"],
@@ -127,55 +91,80 @@ async def connect_to_wss(socks5_proxy, user_id):
                                     "user_id": user_id,
                                     "user_agent": custom_headers['User-Agent'],
                                     "timestamp": int(time.time()),
-                                    "device_type": "desktop",  # Metadata desktop
-                                    "version": "4.28.2",  # File version sesuai data aplikasi
-                                    "product": "Grass",  # Nama produk sesuai informasi aplikasi
+                                    "device_type": "desktop",
+                                    "version": "4.28.2",
+                                    "product": "Grass",
                                     "copyright": "© Grass Foundation, 2024. All rights reserved."
                                 }
                             }
                             logger.debug(f"[{user_id}] Sending AUTH response: {auth_response}")
                             await websocket.send(json.dumps(auth_response))
-
+                    except asyncio.TimeoutError:
+                        logger.warning(f"[{user_id}] Timeout waiting for response. Skipping to next proxy.")
+                        break
                     except Exception as e:
                         logger.warning(f"[{user_id}] Error receiving message: {e}")
                         break
 
-                # Akhiri tugas PING jika loop berhenti
                 ping_task.cancel()
+                await ping_task
                 break
 
+        except asyncio.CancelledError:
+            logger.warning(f"[{user_id}] Task was cancelled. Exiting gracefully.")
+            break
         except Exception as e:
-            logger.error(f"[{user_id}] Connection error: {e}")
-            logger.info(f"[{user_id}] Retrying with proxy: {socks5_proxy}")
+            retries += 1
+            logger.error(f"[{user_id}] Connection error: {e}. Retry {retries}/{max_retries}")
+            if retries >= max_retries:
+                logger.error(f"[{user_id}] Max retries reached. Task aborted.")
+                break
+
+        logger.debug(f"[{user_id}] Loop iteration completed. Reconnecting...")
 
 async def main():
-    # Membaca file user ID
-    with open('user_ids.txt', 'r') as user_file:
-        user_ids = user_file.read().splitlines()
+    try:
+        with open('user_ids.txt', 'r') as user_file:
+            user_ids = user_file.read().splitlines()
+        logger.info(f"Jumlah akun: {len(user_ids)}")
 
-    logger.info(f"Jumlah akun: {len(user_ids)}")
+        with open('proxies.txt', 'r') as proxy_file:
+            proxies = proxy_file.read().splitlines()
 
-    # Membaca file proxy
-    with open('proxies.txt', 'r') as proxy_file:
-        proxies = proxy_file.read().splitlines()
+        tasks = []
+        proxy_count = len(proxies)
+        user_count = len(user_ids)
 
-    tasks = []
-    proxy_count = len(proxies)
-    user_count = len(user_ids)
+        logger.debug(f"Preparing tasks for proxies and users.")
+        semaphore = asyncio.Semaphore(10)  # Batasi jumlah koneksi simultan
 
-    # Pastikan setiap proxy digunakan setidaknya sekali
-    for i in range(max(proxy_count, user_count)):
-        user_id = user_ids[i % user_count]
-        proxy = proxies[i % proxy_count]
-        tasks.append(asyncio.create_task(connect_to_wss(proxy, user_id)))
+        async def limited_connect(proxy, user_id):
+            async with semaphore:
+                await connect_to_wss(proxy, user_id)
 
-        # Tambahkan jeda acak antar koneksi
-        await asyncio.sleep(random.uniform(3, 7))  # Delay antar koneksi (3-7 detik)
+        for i in range(max(proxy_count, user_count)):
+            user_id = user_ids[i % user_count]
+            proxy = proxies[i % proxy_count]
+            tasks.append(asyncio.create_task(limited_connect(proxy, user_id)))
+            await asyncio.sleep(random.uniform(3, 7))
 
-    await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    except Exception as e:
+        logger.error(f"Unhandled exception in main: {e}")
+    finally:
+        logger.info("Main task completed or terminated.")
 
 if __name__ == '__main__':
+    logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
+    logger.info("Starting bot...")
     try:
         asyncio.run(main())
+    except asyncio.CancelledError:
+        logger.info("Bot terminated due to cancelled tasks.")
     except KeyboardInterrupt:
         logger.info("Bot terminated by user.")
+    except Exception as e:
+        logger.critical(f"Unhandled exception in asyncio: {e}")
+    finally:
+        logger.info("Bot shutdown completed.")
