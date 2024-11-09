@@ -7,7 +7,10 @@ import uuid
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 
-# Daftar User-Agent statis (baru, 30 User-Agent)
+# Konfigurasi loguru untuk mencetak log ke layar dan menyimpannya ke file
+logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
+
+# Daftar User-Agent statis (30 User-Agent)
 USER_AGENT_LIST = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
@@ -19,27 +22,9 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
+    # Tambahkan sisa User-Agent di sini...
 ]
+
 # Fungsi untuk mengirim laporan sesi terakhir
 async def send_session_report(websocket, start_time, end_time, user_id):
     session_data = {
@@ -56,6 +41,7 @@ async def send_session_report(websocket, start_time, end_time, user_id):
     except Exception as e:
         logger.error(f"[{user_id}] Failed to send session report: {e}")
 
+# Fungsi untuk mengelola koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
     device_id = str(uuid.uuid4())
@@ -69,19 +55,21 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
             logger.debug(f"[{user_id}] Sleeping before reconnecting.")
             await asyncio.sleep(random.uniform(1, 5))
 
+            # Konfigurasi header dan SSL
             custom_headers = {"User-Agent": user_agent}
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
 
+            # Pilihan URI WebSocket
             urilist = ["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"]
             uri = random.choice(urilist)
-            server_hostname = "proxy.wynd.network"
             proxy = Proxy.from_url(socks5_proxy)
 
             logger.info(f"[{user_id}] Connecting to {uri} using proxy {socks5_proxy}")
 
-            async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname=server_hostname,
+            # Koneksi WebSocket
+            async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname="proxy.wynd.network",
                                      extra_headers=custom_headers) as websocket:
 
                 logger.debug(f"[{user_id}] Successfully connected to {uri}")
@@ -89,6 +77,7 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                 await send_session_report(websocket, session_start_time, session_end_time, user_id)
                 session_start_time = time.time()
 
+                # Kirim PING setiap 10 detik
                 async def send_ping():
                     while True:
                         ping_message = json.dumps(
@@ -110,6 +99,7 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                         message = json.loads(response)
                         logger.info(f"[{user_id}] Received: {message}")
 
+                        # Menangani AUTH
                         if message.get("action") == "AUTH":
                             auth_response = {
                                 "id": message["id"],
@@ -122,7 +112,7 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                                     "device_type": "desktop",
                                     "version": "4.28.2",
                                     "product": "Grass",
-                                    "copyright": "© Grass Foundation, 2024. All rights reserved."
+                                    "copyright": "© Grass Foundation, 2024."
                                 }
                             }
                             logger.debug(f"[{user_id}] Sending AUTH response: {auth_response}")
@@ -150,12 +140,15 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
 
         logger.debug(f"[{user_id}] Loop iteration completed. Reconnecting...")
 
+# Fungsi utama
 async def main():
     try:
+        # Membaca file user ID
         with open('user_ids.txt', 'r') as user_file:
             user_ids = user_file.read().splitlines()
         logger.info(f"Jumlah akun: {len(user_ids)}")
 
+        # Membaca file proxy
         with open('proxies.txt', 'r') as proxy_file:
             proxies = proxy_file.read().splitlines()
 
@@ -183,8 +176,8 @@ async def main():
     finally:
         logger.info("Main task completed or terminated.")
 
+# Entry point
 if __name__ == '__main__':
-    logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
     logger.info("Starting bot...")
     try:
         asyncio.run(main())
