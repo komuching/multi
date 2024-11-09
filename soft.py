@@ -8,7 +8,7 @@ from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 
 # Konfigurasi loguru untuk mencatat log ke layar dan file
-logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 hari")
+logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")  # Retention dalam bahasa Inggris
 
 # Daftar User-Agent statis (30 User-Agent)
 USER_AGENT_LIST = [
