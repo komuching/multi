@@ -42,7 +42,7 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
-]
+]]
 
 # Fungsi untuk mengirim laporan sesi terakhir
 async def send_session_report(websocket, start_time, end_time, user_id):
@@ -170,6 +170,14 @@ async def main():
         with open('proxies.txt', 'r') as proxy_file:
             proxies = proxy_file.read().splitlines()
 
+        # Validasi daftar awal
+        if not user_ids:
+            logger.error("Daftar UID kosong. Pastikan file 'user_ids.txt' tidak kosong.")
+            return
+        if not proxies:
+            logger.error("Daftar proxy kosong. Pastikan file 'proxies.txt' tidak kosong.")
+            return
+
         active_proxies = proxies.copy()
 
         while True:
@@ -193,6 +201,11 @@ async def main():
                         active_proxies.remove(proxy)
 
             for i in range(max(proxy_count, user_count)):
+                # Validasi ulang sebelum mengakses indeks
+                if not user_ids or not active_proxies:
+                    logger.error("Daftar UID atau proxy kosong selama iterasi.")
+                    break
+
                 user_id = user_ids[i % user_count]
                 proxy = active_proxies[i % proxy_count]
                 tasks.append(asyncio.create_task(limited_connect(proxy, user_id)))
