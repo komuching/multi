@@ -50,8 +50,10 @@ Versi Node:
 ```
 python3 bot2.py
 ```
-
-
+Versi Alternatif: 
+```
+python3 soft.py
+```
 -------------------------------------------------------------------------------------
 Credits: @Qodratjr (x)
 Join: https://t.me/komucing
