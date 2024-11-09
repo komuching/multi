@@ -7,7 +7,7 @@ import uuid
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 
-# Konfigurasi loguru untuk mencetak log ke layar dan menyimpannya ke file
+# Konfigurasi loguru untuk mencatat log ke layar dan file
 logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
 
 # Daftar User-Agent statis (30 User-Agent)
@@ -22,7 +22,26 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    # Tambahkan sisa User-Agent di sini...
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
 ]
 
 # Fungsi untuk mengirim laporan sesi terakhir
@@ -47,11 +66,11 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
     device_id = str(uuid.uuid4())
     logger.info(f"[{user_id}] Device ID: {device_id} | Proxy: {socks5_proxy} | User-Agent: {user_agent}")
 
-    session_start_time = time.time()
     retries = 0
 
     while retries < max_retries:
         try:
+            # Penundaan acak sebelum mencoba koneksi ulang
             logger.debug(f"[{user_id}] Sleeping before reconnecting.")
             await asyncio.sleep(random.uniform(1, 5))
 
@@ -73,24 +92,22 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                                      extra_headers=custom_headers) as websocket:
 
                 logger.debug(f"[{user_id}] Successfully connected to {uri}")
-                session_end_time = time.time()
-                await send_session_report(websocket, session_start_time, session_end_time, user_id)
-                session_start_time = time.time()
 
-                # Kirim PING setiap 10 detik
+                # Kirim PING setiap 5 detik
                 async def send_ping():
                     while True:
-                        ping_message = json.dumps(
-                            {"id": str(uuid.uuid4()), "version": "4.28.2", "action": "PING", "data": {}}
-                        )
-                        logger.debug(f"[{user_id}] Sending PING: {ping_message}")
                         try:
+                            ping_message = json.dumps(
+                                {"id": str(uuid.uuid4()), "version": "4.28.2", "action": "PING", "data": {}}
+                            )
+                            logger.debug(f"[{user_id}] Sending PING: {ping_message}")
                             await websocket.send(ping_message)
+                            await asyncio.sleep(5)  # Interval PING dipercepat menjadi 5 detik
                         except Exception as e:
                             logger.warning(f"[{user_id}] send_ping encountered an error: {e}")
                             break
-                        await asyncio.sleep(10)
 
+                # Memulai tugas pengiriman PING
                 ping_task = asyncio.create_task(send_ping())
 
                 while True:
