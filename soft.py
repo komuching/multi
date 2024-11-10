@@ -8,9 +8,9 @@ from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 
 # Konfigurasi loguru untuk mencatat log ke layar dan file
-logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")  # Retention dalam bahasa Inggris
+logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
 
-# Daftar User-Agent statis (30 User-Agent)
+# Daftar User-Agent statis
 USER_AGENT_LIST = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
@@ -44,18 +44,26 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
 ]
 
-# Fungsi untuk mengelola koneksi WebSocket
-async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
+# Fungsi validasi proxy
+async def validate_proxy(proxy):
+    try:
+        test_uri = "http://www.google.com"
+        proxy_object = Proxy.from_url(proxy)
+        async with proxy_connect(test_uri, proxy=proxy_object):
+            return True
+    except Exception as e:
+        logger.warning(f"Proxy {proxy} tidak valid: {e}")
+        return False
+
+# Fungsi koneksi WebSocket
+async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
     device_id = str(uuid.uuid4())
-    logger.info(f"[{user_id}] ID Perangkat: {device_id} | Proxy: {socks5_proxy} | User-Agent: {user_agent}")
 
-    retries = 0
+    logger.info(f"[{user_id}] Inisialisasi koneksi | Proxy: {socks5_proxy} | Device ID: {device_id} | User-Agent: {user_agent}")
+
     while retries < max_retries:
         try:
-            logger.debug(f"[{user_id}] Tidur sejenak sebelum mencoba ulang koneksi.")
-            await asyncio.sleep(random.uniform(1, 5))
-
             custom_headers = {"User-Agent": user_agent}
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
@@ -69,19 +77,18 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
 
             async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname="proxy.wynd.network",
                                      extra_headers=custom_headers) as websocket:
-                logger.debug(f"[{user_id}] Berhasil terhubung ke {uri}")
+                logger.debug(f"[{user_id}] Berhasil terhubung ke {uri} | Device ID: {device_id} | Proxy: {socks5_proxy}")
 
+                # Kirim AUTH saat menerima pesan AUTH
                 async def send_ping():
                     while True:
                         try:
-                            ping_message = json.dumps(
-                                {"id": str(uuid.uuid4()), "version": "4.28.2", "action": "PING", "data": {}}
-                            )
+                            ping_message = json.dumps({"id": str(uuid.uuid4()), "version": "4.28.2", "action": "PING", "data": {}})
                             logger.debug(f"[{user_id}] Mengirim PING: {ping_message}")
                             await websocket.send(ping_message)
                             await asyncio.sleep(5)
                         except Exception as e:
-                            logger.warning(f"[{user_id}] Terjadi kesalahan saat mengirim PING: {e}")
+                            logger.warning(f"[{user_id}] Kesalahan saat mengirim PING: {e}")
                             break
 
                 ping_task = asyncio.create_task(send_ping())
@@ -92,6 +99,7 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                         message = json.loads(response)
                         logger.info(f"[{user_id}] Pesan diterima: {message}")
 
+                        # Tangani autentikasi
                         if message.get("action") == "AUTH":
                             auth_response = {
                                 "id": message["id"],
@@ -107,11 +115,10 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                                     "copyright": "© Grass Foundation, 2024."
                                 }
                             }
-                            logger.debug(f"[{user_id}] Mengirim respons AUTH: {auth_response}")
+                            logger.info(f"[{user_id}] Mengirim respons AUTH: {auth_response}")
                             await websocket.send(json.dumps(auth_response))
                     except asyncio.TimeoutError:
-                        logger.warning(f"[{user_id}] Waktu habis saat menunggu respons.")
-                        break
+                        logger.warning(f"[{user_id}] Waktu habis menunggu respons.")
                     except Exception as e:
                         logger.warning(f"[{user_id}] Kesalahan saat menerima pesan: {e}")
                         break
@@ -120,19 +127,17 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                 try:
                     await ping_task
                 except asyncio.CancelledError:
-                    logger.debug(f"[{user_id}] Tugas ping dibatalkan dengan aman.")
+                    logger.debug(f"[{user_id}] Tugas ping dibatalkan.")
                 break
 
-        except asyncio.CancelledError:
-            logger.warning(f"[{user_id}] Tugas dibatalkan.")
-            break
         except Exception as e:
             retries += 1
             logger.error(f"[{user_id}] Kesalahan koneksi: {e}. Percobaan ulang {retries}/{max_retries}")
-            if retries >= max_retries:
-                logger.error(f"[{user_id}] Proxy {socks5_proxy} dianggap tidak aktif.")
-                return False
+            await asyncio.sleep(2)
 
+    if retries >= max_retries:
+        logger.error(f"[{user_id}] Proxy {socks5_proxy} dianggap tidak aktif.")
+        return False
     return True
 
 # Fungsi utama
@@ -140,66 +145,66 @@ async def main():
     try:
         with open('user_ids.txt', 'r') as user_file:
             user_ids = user_file.read().splitlines()
-        logger.info(f"Jumlah akun: {len(user_ids)}")
 
         with open('proxies.txt', 'r') as proxy_file:
             proxies = proxy_file.read().splitlines()
 
-        if not user_ids:
-            logger.error("Daftar UID kosong.")
-            return
-        if not proxies:
-            logger.error("Daftar proxy kosong.")
+        if not user_ids or not proxies:
+            logger.error("Daftar UID atau Proxy kosong.")
             return
 
-        active_proxies = proxies.copy()
+        user_id = user_ids[0]  # Fokus pada satu user_id
+        active_proxies = []
         failed_proxies = {}
 
-        while True:
-            # Membersihkan proxy gagal jika waktu sudah lewat 2 menit
-            now = time.time()
-            retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
+        # Validasi semua proxy sebelum digunakan
+        logger.info("Memvalidasi proxy...")
+        for proxy in proxies:
+            if await validate_proxy(proxy):
+                active_proxies.append(proxy)
 
-            # Mencoba ulang proxy gagal
+        if not active_proxies:
+            logger.error("Tidak ada proxy valid yang tersedia.")
+            return
+
+        while True:
+            now = time.time()
+
+            # Menambahkan ulang proxy gagal yang sudah melewati waktu tunggu
+            retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
             for proxy in retryable_proxies:
                 failed_proxies.pop(proxy, None)
                 active_proxies.append(proxy)
                 logger.info(f"Menambahkan ulang proxy gagal: {proxy}")
 
-            # Jika tidak ada proxy aktif, isi ulang dari proxy utama
+            # Jika tidak ada proxy aktif, muat ulang daftar proxy utama
             if not active_proxies:
                 logger.warning("Semua proxy gagal. Memuat ulang daftar proxy...")
-                active_proxies = proxies.copy()
+                active_proxies = [proxy for proxy in proxies if proxy not in failed_proxies]
 
-            # Membatasi jumlah koneksi paralel
-            semaphore = asyncio.Semaphore(10)
+            # Proses koneksi dalam batch
+            batch_size = 10  # Ubah sesuai kebutuhan
+            for i in range(0, len(active_proxies), batch_size):
+                batch = active_proxies[i:i + batch_size]
+                tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            tasks = [
-                asyncio.create_task(connect_to_wss(proxy, user_ids[0]))  # Fokus pada satu user_id
-                for proxy in active_proxies
-            ]
+                # Proses hasil task
+                for idx, result in enumerate(results):
+                    proxy = batch[idx]
+                    if result is False or isinstance(result, Exception):
+                        logger.error(f"Proxy {proxy} gagal.")
+                        failed_proxies[proxy] = time.time()
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for idx, result in enumerate(results):
-                proxy = active_proxies[idx]
-                if isinstance(result, Exception):
-                    logger.error(f"Proxy {proxy} gagal.")
-                    failed_proxies[proxy] = time.time()
-                    active_proxies.remove(proxy)
+                # Hapus proxy yang gagal dari batch
+                active_proxies = [proxy for proxy in active_proxies if proxy not in failed_proxies]
 
     except Exception as e:
         logger.error(f"Kesalahan di main: {e}")
-    finally:
-        logger.info("Tugas utama selesai.")
 
-# Entry point
 if __name__ == '__main__':
     logger.info("Memulai bot...")
     try:
-        while True:
-            try:
-                asyncio.run(main())
-            except Exception as e:
-                logger.error(f"Kesalahan di loop utama: {e}. Restart...")
+        asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Bot dihentikan.")
+        logger.info("Bot dihentikan oleh pengguna.")
