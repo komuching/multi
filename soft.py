@@ -10,26 +10,35 @@ from websockets_proxy import Proxy, proxy_connect
 # Konfigurasi loguru untuk mencatat log ke layar dan file
 logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
 
-# Fungsi untuk membuat User-Agent secara acak
-def generate_user_agent():
-    os_list = [
-        "Windows NT 10.0; Win64; x64",
-        "Macintosh; Intel Mac OS X 10_15_7",
-        "X11; Ubuntu; Linux x86_64"
-    ]
-    browsers = [
-        "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36",
-        "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/{version}.0",
-        "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Edge/{version}.0.0.0"
-    ]
-    os_choice = random.choice(os_list)
-    browser_template = random.choice(browsers)
-    browser_version = random.randint(90, 115)  # Random browser version between 90 and 115
-    return browser_template.format(os=os_choice, version=browser_version)
+# Daftar User-Agent statis
+USER_AGENT_LIST = [
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, seperti Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/113.0.0.0 Safari/537.36",
+]
+
+# Fungsi untuk mengonversi proxy HTTP ke SOCKS5
+def convert_proxy_to_socks5(proxy):
+    if proxy.startswith("http://"):
+        logger.debug(f"Mengonversi proxy {proxy} ke SOCKS5")
+        return proxy.replace("http://", "socks5://", 1)
+    return proxy
+
+# Fungsi validasi proxy
+async def validate_proxy(proxy):
+    try:
+        logger.debug(f"Memeriksa proxy dengan format: {proxy}")
+        proxy_object = Proxy.from_url(proxy)
+        test_uri = "http://www.google.com"
+        async with proxy_connect(test_uri, proxy=proxy_object):
+            logger.info(f"Proxy {proxy} valid.")
+            return True
+    except Exception as e:
+        logger.warning(f"Proxy {proxy} tidak valid: {e}")
+        return False
 
 # Fungsi koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
-    user_agent = generate_user_agent()
+    user_agent = random.choice(USER_AGENT_LIST)
     device_id = str(uuid.uuid4())
 
     logger.info(f"[{user_id}] Inisialisasi koneksi | Proxy: {socks5_proxy} | Device ID: {device_id} | User-Agent: {user_agent}")
@@ -51,7 +60,6 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
                                      extra_headers=custom_headers) as websocket:
                 logger.debug(f"[{user_id}] Berhasil terhubung ke {uri} | Device ID: {device_id} | Proxy: {socks5_proxy}")
 
-                # Kirim PING
                 async def send_ping():
                     while True:
                         try:
@@ -112,30 +120,45 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
 
 # Fungsi utama
 async def main():
-    while True:  # Restart loop utama jika terjadi error besar
-        try:
-            with open('user_ids.txt', 'r') as user_file:
-                user_ids = user_file.read().splitlines()
+    try:
+        with open('user_ids.txt', 'r') as user_file:
+            user_ids = user_file.read().splitlines()
 
-            with open('proxies.txt', 'r') as proxy_file:
-                proxies = proxy_file.read().splitlines()
+        with open('proxies.txt', 'r') as proxy_file:
+            proxies = [convert_proxy_to_socks5(proxy) for proxy in proxy_file.read().splitlines()]
 
-            if not user_ids or not proxies:
-                logger.error("Daftar UID atau Proxy kosong. Bot berhenti.")
-                return
+        if not user_ids or not proxies:
+            logger.error("Daftar UID atau Proxy kosong.")
+            return
 
-            user_id = user_ids[0]  # Fokus pada satu user_id
+        user_id = user_ids[0]
+        active_proxies = []
 
-            while True:
-                batch_size = 10  # Ubah sesuai kebutuhan
-                for i in range(0, len(proxies), batch_size):
-                    batch = proxies[i:i + batch_size]
-                    tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
-                    await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info("Memvalidasi proxy...")
+        for proxy in proxies:
+            if await validate_proxy(proxy):
+                active_proxies.append(proxy)
 
-        except Exception as e:
-            logger.error(f"Kesalahan fatal di loop utama: {e}. Bot akan mencoba restart.")
-            await asyncio.sleep(5)  # Tunggu sebelum mencoba ulang
+        if not active_proxies:
+            logger.error("Tidak ada proxy valid yang tersedia.")
+            return
+
+        while True:
+            now = time.time()
+            retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
+            for proxy in retryable_proxies:
+                failed_proxies.pop(proxy, None)
+                active_proxies.append(proxy)
+                logger.info(f"Menambahkan ulang proxy gagal: {proxy}")
+
+            batch_size = min(10, len(active_proxies))
+            for i in range(0, len(active_proxies), batch_size):
+                batch = active_proxies[i:i + batch_size]
+                tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+    except Exception as e:
+        logger.error(f"Kesalahan di main: {e}")
 
 if __name__ == '__main__':
     logger.info("Memulai bot...")
