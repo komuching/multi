@@ -12,48 +12,9 @@ logger.add("bot_debug.log", level="DEBUG", rotation="10 MB", retention="7 days")
 
 # Daftar User-Agent statis
 USER_AGENT_LIST = [
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/113.0.0.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, seperti Gecko) Firefox/109.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/113.0.0.0 Safari/537.36",
 ]
-
-# Fungsi validasi proxy
-async def validate_proxy(proxy):
-    try:
-        test_uri = "http://www.google.com"
-        proxy_object = Proxy.from_url(proxy)
-        async with proxy_connect(test_uri, proxy=proxy_object):
-            return True
-    except Exception as e:
-        logger.warning(f"Proxy {proxy} tidak valid: {e}")
-        return False
 
 # Fungsi untuk mengonversi proxy HTTP ke SOCKS5
 def convert_proxy_to_socks5(proxy):
@@ -65,6 +26,7 @@ def convert_proxy_to_socks5(proxy):
 # Fungsi validasi proxy
 async def validate_proxy(proxy):
     try:
+        logger.debug(f"Memeriksa proxy dengan format: {proxy}")
         proxy_object = Proxy.from_url(proxy)
         test_uri = "http://www.google.com"
         async with proxy_connect(test_uri, proxy=proxy_object):
@@ -73,7 +35,7 @@ async def validate_proxy(proxy):
     except Exception as e:
         logger.warning(f"Proxy {proxy} tidak valid: {e}")
         return False
-        
+
 # Fungsi koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
@@ -98,7 +60,6 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
                                      extra_headers=custom_headers) as websocket:
                 logger.debug(f"[{user_id}] Berhasil terhubung ke {uri} | Device ID: {device_id} | Proxy: {socks5_proxy}")
 
-                # Kirim AUTH saat menerima pesan AUTH
                 async def send_ping():
                     while True:
                         try:
@@ -118,7 +79,6 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
                         message = json.loads(response)
                         logger.info(f"[{user_id}] Pesan diterima: {message}")
 
-                        # Tangani autentikasi
                         if message.get("action") == "AUTH":
                             auth_response = {
                                 "id": message["id"],
@@ -131,7 +91,6 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
                                     "device_type": "desktop",
                                     "version": "4.28.2",
                                     "product": "Grass",
-                                    "copyright": "© Grass Foundation, 2024."
                                 }
                             }
                             logger.info(f"[{user_id}] Mengirim respons AUTH: {auth_response}")
@@ -166,17 +125,15 @@ async def main():
             user_ids = user_file.read().splitlines()
 
         with open('proxies.txt', 'r') as proxy_file:
-            proxies = proxy_file.read().splitlines()
+            proxies = [convert_proxy_to_socks5(proxy) for proxy in proxy_file.read().splitlines()]
 
         if not user_ids or not proxies:
             logger.error("Daftar UID atau Proxy kosong.")
             return
 
-        user_id = user_ids[0]  # Fokus pada satu user_id
+        user_id = user_ids[0]
         active_proxies = []
-        failed_proxies = {}
 
-        # Validasi semua proxy sebelum digunakan
         logger.info("Memvalidasi proxy...")
         for proxy in proxies:
             if await validate_proxy(proxy):
@@ -188,35 +145,17 @@ async def main():
 
         while True:
             now = time.time()
-
-            # Menambahkan ulang proxy gagal yang sudah melewati waktu tunggu
             retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
             for proxy in retryable_proxies:
                 failed_proxies.pop(proxy, None)
                 active_proxies.append(proxy)
                 logger.info(f"Menambahkan ulang proxy gagal: {proxy}")
 
-            # Jika tidak ada proxy aktif, muat ulang daftar proxy utama
-            if not active_proxies:
-                logger.warning("Semua proxy gagal. Memuat ulang daftar proxy...")
-                active_proxies = [proxy for proxy in proxies if proxy not in failed_proxies]
-
-            # Proses koneksi dalam batch
-            batch_size = 10  # Ubah sesuai kebutuhan
+            batch_size = min(10, len(active_proxies))
             for i in range(0, len(active_proxies), batch_size):
                 batch = active_proxies[i:i + batch_size]
                 tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                # Proses hasil task
-                for idx, result in enumerate(results):
-                    proxy = batch[idx]
-                    if result is False or isinstance(result, Exception):
-                        logger.error(f"Proxy {proxy} gagal.")
-                        failed_proxies[proxy] = time.time()
-
-                # Hapus proxy yang gagal dari batch
-                active_proxies = [proxy for proxy in active_proxies if proxy not in failed_proxies]
+                await asyncio.gather(*tasks, return_exceptions=True)
 
     except Exception as e:
         logger.error(f"Kesalahan di main: {e}")
