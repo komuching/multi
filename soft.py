@@ -116,6 +116,8 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
             if retries >= max_retries:
                 logger.error(f"[{user_id}] Proxy {socks5_proxy} dianggap tidak aktif.")
                 return False
+        finally:
+            logger.info(f"[{user_id}] Loop selesai, akan mencoba ulang jika masih ada percobaan.")
 
     return True
 
@@ -139,35 +141,46 @@ async def main():
         active_proxies = proxies.copy()
         failed_proxies = {}
 
+        semaphore = asyncio.Semaphore(10)  # Maksimal 10 koneksi bersamaan
+
         while True:
             # Membersihkan proxy gagal jika waktu sudah lewat 2 menit
             now = time.time()
             retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
 
-            # Mencoba ulang proxy gagal
+            # Menambahkan kembali proxy gagal ke daftar aktif
             for proxy in retryable_proxies:
                 failed_proxies.pop(proxy, None)
                 active_proxies.append(proxy)
                 logger.info(f"Menambahkan ulang proxy gagal: {proxy}")
 
-            # Jika tidak ada proxy aktif, isi ulang dari proxy utama
+            # Jika tidak ada proxy aktif, muat ulang dari daftar utama
             if not active_proxies:
                 logger.warning("Semua proxy gagal. Memuat ulang daftar proxy...")
                 active_proxies = proxies.copy()
+                if not active_proxies:
+                    logger.error("Tidak ada proxy yang tersedia. Menunggu 60 detik...")
+                    await asyncio.sleep(60)
+                    continue
+
+            # Menambahkan koneksi baru jika jumlah koneksi aktif kurang dari 10
+            while len(active_proxies) < 5 and proxies:
+                new_proxy = proxies.pop(0)
+                active_proxies.append(new_proxy)
+                logger.info(f"Menambahkan koneksi baru dengan proxy: {new_proxy}")
 
             # Membatasi jumlah koneksi paralel
-            semaphore = asyncio.Semaphore(10)
+            tasks = []
+            for proxy in active_proxies:
+                async with semaphore:
+                    tasks.append(asyncio.create_task(connect_to_wss(proxy, random.choice(user_ids))))
 
-            tasks = [
-                asyncio.create_task(connect_to_wss(proxy, user_ids[0]))  # Fokus pada satu user_id
-                for proxy in active_proxies
-            ]
-
+            # Menangani hasil task
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for idx, result in enumerate(results):
                 proxy = active_proxies[idx]
                 if isinstance(result, Exception):
-                    logger.error(f"Proxy {proxy} gagal.")
+                    logger.error(f"Proxy {proxy} gagal: {result}")
                     failed_proxies[proxy] = time.time()
                     active_proxies.remove(proxy)
 
