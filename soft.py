@@ -16,26 +16,6 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/113.0.0.0 Safari/537.36",
 ]
 
-# Fungsi untuk mengonversi proxy HTTP ke SOCKS5
-def convert_proxy_to_socks5(proxy):
-    if proxy.startswith("http://"):
-        logger.debug(f"Mengonversi proxy {proxy} ke SOCKS5")
-        return proxy.replace("http://", "socks5://", 1)
-    return proxy
-
-# Fungsi validasi proxy
-async def validate_proxy(proxy):
-    try:
-        logger.debug(f"Memeriksa proxy dengan format: {proxy}")
-        proxy_object = Proxy.from_url(proxy)
-        test_uri = "http://www.google.com"
-        async with proxy_connect(test_uri, proxy=proxy_object):
-            logger.info(f"Proxy {proxy} valid.")
-            return True
-    except Exception as e:
-        logger.warning(f"Proxy {proxy} tidak valid: {e}")
-        return False
-
 # Fungsi koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
