@@ -18,7 +18,7 @@ USER_AGENT_LIST = [
 
 # Fungsi koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
-    user_agent = random.choice(USER_AGENT_LIST)
+    user_agent = generate_user_agent()
     device_id = str(uuid.uuid4())
 
     logger.info(f"[{user_id}] Inisialisasi koneksi | Proxy: {socks5_proxy} | Device ID: {device_id} | User-Agent: {user_agent}")
