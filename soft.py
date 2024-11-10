@@ -44,22 +44,6 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/109.0"
 ]
 
-# Fungsi untuk mengirim laporan sesi terakhir
-async def send_session_report(websocket, start_time, end_time, user_id):
-    session_data = {
-        "action": "SESSION_REPORT",
-        "data": {
-            "user_id": user_id,
-            "start_time": start_time,
-            "end_time": end_time
-        }
-    }
-    logger.info(f"[{user_id}] Mengirim laporan sesi: {session_data}")
-    try:
-        await websocket.send(json.dumps(session_data))
-    except Exception as e:
-        logger.error(f"[{user_id}] Gagal mengirim laporan sesi: {e}")
-
 # Fungsi untuk mengelola koneksi WebSocket
 async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
     user_agent = random.choice(USER_AGENT_LIST)
@@ -67,7 +51,6 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
     logger.info(f"[{user_id}] ID Perangkat: {device_id} | Proxy: {socks5_proxy} | User-Agent: {user_agent}")
 
     retries = 0
-
     while retries < max_retries:
         try:
             logger.debug(f"[{user_id}] Tidur sejenak sebelum mencoba ulang koneksi.")
@@ -86,7 +69,6 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
 
             async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname="proxy.wynd.network",
                                      extra_headers=custom_headers) as websocket:
-
                 logger.debug(f"[{user_id}] Berhasil terhubung ke {uri}")
 
                 async def send_ping():
@@ -128,27 +110,29 @@ async def connect_to_wss(socks5_proxy, user_id, max_retries=5):
                             logger.debug(f"[{user_id}] Mengirim respons AUTH: {auth_response}")
                             await websocket.send(json.dumps(auth_response))
                     except asyncio.TimeoutError:
-                        logger.warning(f"[{user_id}] Waktu habis saat menunggu respons. Beralih ke proxy berikutnya.")
+                        logger.warning(f"[{user_id}] Waktu habis saat menunggu respons.")
                         break
                     except Exception as e:
                         logger.warning(f"[{user_id}] Kesalahan saat menerima pesan: {e}")
                         break
 
                 ping_task.cancel()
-                await ping_task
+                try:
+                    await ping_task
+                except asyncio.CancelledError:
+                    logger.debug(f"[{user_id}] Tugas ping dibatalkan dengan aman.")
                 break
 
         except asyncio.CancelledError:
-            logger.warning(f"[{user_id}] Tugas dibatalkan. Keluar dengan baik.")
+            logger.warning(f"[{user_id}] Tugas dibatalkan.")
             break
         except Exception as e:
             retries += 1
             logger.error(f"[{user_id}] Kesalahan koneksi: {e}. Percobaan ulang {retries}/{max_retries}")
             if retries >= max_retries:
-                logger.error(f"[{user_id}] Proxy {socks5_proxy} sekarang dianggap tidak aktif.")
+                logger.error(f"[{user_id}] Proxy {socks5_proxy} dianggap tidak aktif.")
                 return False
 
-    logger.debug(f"[{user_id}] Iterasi selesai. Mencoba ulang...")
     return True
 
 # Fungsi utama
@@ -162,44 +146,60 @@ async def main():
             proxies = proxy_file.read().splitlines()
 
         if not user_ids:
-            logger.error("Daftar UID kosong. Pastikan file 'user_ids.txt' tidak kosong.")
+            logger.error("Daftar UID kosong.")
             return
         if not proxies:
-            logger.error("Daftar proxy kosong. Pastikan file 'proxies.txt' tidak kosong.")
+            logger.error("Daftar proxy kosong.")
             return
 
         active_proxies = proxies.copy()
+        failed_proxies = {}
 
         while True:
-            if not active_proxies:
-                logger.warning("Tidak ada proxy aktif. Standby selama 60 detik...")
-                await asyncio.sleep(60)
-                active_proxies = proxies.copy()
-                continue
+            # Membersihkan proxy gagal jika waktu sudah lewat 2 menit
+            now = time.time()
+            retryable_proxies = [proxy for proxy, t in failed_proxies.items() if now - t >= 120]
 
+            # Mencoba ulang proxy gagal
+            for proxy in retryable_proxies:
+                failed_proxies.pop(proxy, None)
+                active_proxies.append(proxy)
+                logger.info(f"Menambahkan ulang proxy gagal: {proxy}")
+
+            # Jika tidak ada proxy aktif, isi ulang dari proxy utama
+            if not active_proxies:
+                logger.warning("Semua proxy gagal. Memuat ulang daftar proxy...")
+                active_proxies = proxies.copy()
+
+            # Membatasi jumlah koneksi paralel
             semaphore = asyncio.Semaphore(10)
+
             tasks = [
-                asyncio.create_task(
-                    connect_to_wss(proxy, user_ids[idx % len(user_ids)])
-                )
-                for idx, proxy in enumerate(active_proxies)
+                asyncio.create_task(connect_to_wss(proxy, user_ids[0]))  # Fokus pada satu user_id
+                for proxy in active_proxies
             ]
 
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for idx, result in enumerate(results):
+                proxy = active_proxies[idx]
+                if isinstance(result, Exception):
+                    logger.error(f"Proxy {proxy} gagal.")
+                    failed_proxies[proxy] = time.time()
+                    active_proxies.remove(proxy)
 
     except Exception as e:
-        logger.error(f"Kesalahan tak terduga di main: {e}")
+        logger.error(f"Kesalahan di main: {e}")
     finally:
-        logger.info("Tugas utama selesai atau dihentikan.")
+        logger.info("Tugas utama selesai.")
 
 # Entry point
 if __name__ == '__main__':
     logger.info("Memulai bot...")
     try:
-        asyncio.run(main())
+        while True:
+            try:
+                asyncio.run(main())
+            except Exception as e:
+                logger.error(f"Kesalahan di loop utama: {e}. Restart...")
     except KeyboardInterrupt:
-        logger.info("Bot dihentikan oleh pengguna.")
-    except Exception as e:
-        logger.critical(f"Kesalahan tidak terduga: {e}")
-    finally:
-        logger.info("Bot berhasil dimatikan.")
+        logger.info("Bot dihentikan.")
