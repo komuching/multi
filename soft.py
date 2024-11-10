@@ -112,29 +112,30 @@ async def connect_to_wss(socks5_proxy, user_id, retries=0, max_retries=5):
 
 # Fungsi utama
 async def main():
-    try:
-        with open('user_ids.txt', 'r') as user_file:
-            user_ids = user_file.read().splitlines()
+    while True:  # Restart loop utama jika terjadi error besar
+        try:
+            with open('user_ids.txt', 'r') as user_file:
+                user_ids = user_file.read().splitlines()
 
-        with open('proxies.txt', 'r') as proxy_file:
-            proxies = proxy_file.read().splitlines()
+            with open('proxies.txt', 'r') as proxy_file:
+                proxies = proxy_file.read().splitlines()
 
-        if not user_ids or not proxies:
-            logger.error("Daftar UID atau Proxy kosong.")
-            return
+            if not user_ids or not proxies:
+                logger.error("Daftar UID atau Proxy kosong. Bot berhenti.")
+                return
 
-        user_id = user_ids[0]  # Fokus pada satu user_id
+            user_id = user_ids[0]  # Fokus pada satu user_id
 
-        while True:
-            # Proses koneksi dalam batch
-            batch_size = 10  # Ubah sesuai kebutuhan
-            for i in range(0, len(proxies), batch_size):
-                batch = proxies[i:i + batch_size]
-                tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
-                await asyncio.gather(*tasks, return_exceptions=True)
+            while True:
+                batch_size = 10  # Ubah sesuai kebutuhan
+                for i in range(0, len(proxies), batch_size):
+                    batch = proxies[i:i + batch_size]
+                    tasks = [connect_to_wss(proxy, user_id) for proxy in batch]
+                    await asyncio.gather(*tasks, return_exceptions=True)
 
-    except Exception as e:
-        logger.error(f"Kesalahan di main: {e}")
+        except Exception as e:
+            logger.error(f"Kesalahan fatal di loop utama: {e}. Bot akan mencoba restart.")
+            await asyncio.sleep(5)  # Tunggu sebelum mencoba ulang
 
 if __name__ == '__main__':
     logger.info("Memulai bot...")
