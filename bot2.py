@@ -11,7 +11,6 @@ from fake_useragent import UserAgent
 
 # Fungsi untuk membuat Sec-WebSocket-Key acak
 def generate_websocket_key():
-    # Menghasilkan string acak untuk Sec-WebSocket-Key
     key = base64.b64encode(uuid.uuid4().bytes).decode('utf-8')
     return key
 
@@ -21,18 +20,21 @@ def generate_device_id(socks5_proxy):
 
 # Fungsi untuk menghasilkan Browser ID acak
 def generate_browser_id():
-    return str(uuid.uuid4())  # Menghasilkan UUID acak untuk Browser ID
+    return str(uuid.uuid4())
 
 # Fungsi untuk menghasilkan User-Agent acak berdasarkan platform (Mac, Windows, Linux)
 def generate_user_agent():
     platforms = ["windows", "linux", "mac"]
     platform = random.choice(platforms)
     
-    user_agent = UserAgent(os=platform, platforms="pc", browsers="chrome")
-    return user_agent.random
+    try:
+        user_agent = UserAgent(os=platform, platforms="pc", browsers="chrome")
+        return user_agent.random
+    except Exception as e:
+        logger.warning(f"Error occurred during getting browser: {e}, using fallback User-Agent.")
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
 async def connect_to_wss(socks5_proxy, user_id):
-    # Menghasilkan Device ID, Browser ID, dan WebSocket Key acak untuk setiap proxy
     device_id = generate_device_id(socks5_proxy)
     browser_id = generate_browser_id()
     random_user_agent = generate_user_agent()
@@ -40,24 +42,24 @@ async def connect_to_wss(socks5_proxy, user_id):
     logger.info(f"[{user_id}] Device ID: {device_id} | Browser ID: {browser_id} | Proxy: {socks5_proxy}")
 
     retry_count = 0
-    max_retries = 5  # Maksimum retry jika terjadi kesalahan
+    max_retries = 5
 
     while True:
         try:
-            await asyncio.sleep(random.uniform(1, 5))  # Penundaan acak untuk menghindari deteksi bot
+            await asyncio.sleep(random.uniform(1, 5))
 
             custom_headers = {
                 "User-Agent": random_user_agent,
-                "Origin": "chrome-extension://ilehaonighjijnmpnagapkhpcdbhclfg",  # ID ekstensi Chrome
-                "Referer": "chrome-extension://ilehaonighjijnmpnagapkhpcdbhclfg",  # Referer dari ekstensi
+                "Origin": "chrome-extension://ilehaonighjijnmpnagapkhpcdbhclfg",
+                "Referer": "chrome-extension://ilehaonighjijnmpnagapkhpcdbhclfg",
                 "Sec-WebSocket-Version": "13",
                 "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "en-US,en;q=0.9",  # Menghapus id-ID
+                "Accept-Language": "en-US,en;q=0.9",
                 "Upgrade": "websocket",
                 "Connection": "Upgrade",
                 "Pragma": "no-cache",
                 "Cache-Control": "no-cache",
-                "Sec-WebSocket-Key": generate_websocket_key(),  # Generate acak untuk setiap koneksi
+                "Sec-WebSocket-Key": generate_websocket_key(),
                 "Sec-WebSocket-Extensions": "permessage-deflate; client_max_window_bits"
             }
 
@@ -86,9 +88,8 @@ async def connect_to_wss(socks5_proxy, user_id):
                         except Exception as e:
                             logger.warning(f"[{user_id}] send_ping encountered an error: {e}")
                             break
-                        await asyncio.sleep(5)  # Interval PING diturunkan menjadi 5 detik
+                        await asyncio.sleep(5)
 
-                # Mulai tugas PING
                 asyncio.create_task(send_ping())
 
                 while True:
@@ -97,25 +98,23 @@ async def connect_to_wss(socks5_proxy, user_id):
                         message = json.loads(response)
                         logger.info(f"[{user_id}] Received: {message}")
                         
-                        # Menangani AUTH
                         if message.get("action") == "AUTH":
                             auth_response = {
                                 "id": message["id"],
                                 "origin_action": "AUTH",
                                 "result": {
-                                    "browser_id": browser_id,  # Menggunakan Browser ID acak
+                                    "browser_id": browser_id,
                                     "user_id": user_id,
                                     "user_agent": custom_headers['User-Agent'],
                                     "timestamp": int(time.time()),
-                                    "device_type": "extension",  # Metadata disamakan dengan Script 1
-                                    "version": "4.26.2",  # Sama seperti Script 1
-                                    "extension_id": "lkbnfiajjmbhnfledhphioinpickokdi"  # Sama seperti Script 1
+                                    "device_type": "extension",
+                                    "version": "4.26.2",
+                                    "extension_id": "lkbnfiajjmbhnfledhphioinpickokdi"
                                 }
                             }
                             logger.debug(f"[{user_id}] Sending AUTH response: {auth_response}")
                             await websocket.send(json.dumps(auth_response))
                         
-                        # Menangani PONG
                         elif message.get("action") == "PONG":
                             pong_response = {"id": message["id"], "origin_action": "PONG"}
                             logger.debug(f"[{user_id}] Sending PONG: {pong_response}")
@@ -132,7 +131,7 @@ async def connect_to_wss(socks5_proxy, user_id):
             if retry_count == max_retries:
                 logger.error(f"[{user_id}] Max retries reached. Stopping.")
                 break
-            await asyncio.sleep(random.uniform(3, 7))  # Delay sebelum mencoba lagi
+            await asyncio.sleep(random.uniform(3, 7))
 
 async def main():
     # Membaca file user ID
@@ -141,22 +140,26 @@ async def main():
     
     logger.info(f"Jumlah akun: {len(user_ids)}")
     
-    # Membaca file proxy
+    # Membaca file proxy dengan validasi
     with open('proxies.txt', 'r') as proxy_file:
-        proxies = proxy_file.read().splitlines()
+        proxies = []
+        for line in proxy_file:
+            stripped_line = line.strip()
+            if stripped_line:
+                proxies.append(stripped_line)
+            else:
+                logger.warning("Ditemukan entri proxy kosong di file 'proxies.txt'. Abaikan entri ini.")
     
     tasks = []
     proxy_count = len(proxies)
     user_count = len(user_ids)
     
-    # Pastikan setiap proxy digunakan setidaknya sekali
     for i in range(max(proxy_count, user_count)):
         user_id = user_ids[i % user_count]
         proxy = proxies[i % proxy_count]
         tasks.append(asyncio.create_task(connect_to_wss(proxy, user_id)))
         
-        # Tambahkan jeda acak antar koneksi
-        await asyncio.sleep(random.uniform(3, 7))  # Delay antar koneksi (3-7 detik)
+        await asyncio.sleep(random.uniform(3, 7))
     
     await asyncio.gather(*tasks)
 
