@@ -28,7 +28,7 @@ sudo apt install pip -y
 sudo apt install python3 python3-pip -y
 ```  
 ```
-pip install requests loguru websockets==12.0 fake_useragent websockets_proxy asyncio loguru uuid fake_useragent websockets-proxy aiohttp
+pip install requests loguru websockets==12.0 fake_useragent websockets_proxy asyncio loguru uuid fake_useragent websockets-proxy
 
 ```
 
