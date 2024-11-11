@@ -8,7 +8,6 @@ import base64
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
-import aiohttp
 
 # Fungsi untuk membuat Sec-WebSocket-Key acak
 def generate_websocket_key():
@@ -32,7 +31,6 @@ def generate_user_agent():
     user_agent = UserAgent(os=platform, platforms="pc", browsers="chrome")
     return user_agent.random
 
-# Fungsi untuk menghubungkan ke WebSocket dengan timeout dan retry mekanisme
 async def connect_to_wss(socks5_proxy, user_id):
     # Menghasilkan Device ID, Browser ID, dan WebSocket Key acak untuk setiap proxy
     device_id = generate_device_id(socks5_proxy)
@@ -44,7 +42,7 @@ async def connect_to_wss(socks5_proxy, user_id):
     retry_count = 0
     max_retries = 5  # Maksimum retry jika terjadi kesalahan
 
-    while retry_count < max_retries:
+    while True:
         try:
             await asyncio.sleep(random.uniform(1, 5))  # Penundaan acak untuk menghindari deteksi bot
 
@@ -74,10 +72,8 @@ async def connect_to_wss(socks5_proxy, user_id):
 
             logger.info(f"[{user_id}] Connecting to {uri} using proxy {socks5_proxy}")
 
-            # Timeout pengaturan untuk koneksi WebSocket
-            timeout = aiohttp.ClientTimeout(total=10)  # 10 detik untuk total timeout koneksi
             async with proxy_connect(uri, proxy=proxy, ssl=ssl_context, server_hostname=server_hostname,
-                                     extra_headers=custom_headers, timeout=timeout) as websocket:
+                                     extra_headers=custom_headers) as websocket:
 
                 async def send_ping():
                     while True:
@@ -139,7 +135,6 @@ async def connect_to_wss(socks5_proxy, user_id):
             await asyncio.sleep(random.uniform(3, 7))  # Delay sebelum mencoba lagi
 
 async def main():
-    tasks = []
     # Membaca file user ID
     with open('user_ids.txt', 'r') as user_file:
         user_ids = user_file.read().splitlines()
@@ -150,13 +145,19 @@ async def main():
     with open('proxies.txt', 'r') as proxy_file:
         proxies = proxy_file.read().splitlines()
     
-    # Pastikan setiap proxy digunakan setidaknya sekali
-    for i in range(max(len(proxies), len(user_ids))):
-        user_id = user_ids[i % len(user_ids)]
-        proxy = proxies[i % len(proxies)]
-        tasks.append(connect_to_wss(proxy, user_id))  # Menambahkan setiap koneksi ke list tugas
+    tasks = []
+    proxy_count = len(proxies)
+    user_count = len(user_ids)
     
-    # Menjalankan semua task secara bersamaan
+    # Pastikan setiap proxy digunakan setidaknya sekali
+    for i in range(max(proxy_count, user_count)):
+        user_id = user_ids[i % user_count]
+        proxy = proxies[i % proxy_count]
+        tasks.append(asyncio.create_task(connect_to_wss(proxy, user_id)))
+        
+        # Tambahkan jeda acak antar koneksi
+        await asyncio.sleep(random.uniform(3, 7))  # Delay antar koneksi (3-7 detik)
+    
     await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
