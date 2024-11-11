@@ -8,6 +8,7 @@ import base64
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
+from urllib.parse import urlparse
 
 # Fungsi untuk membuat Sec-WebSocket-Key acak
 def generate_websocket_key():
@@ -34,7 +35,31 @@ def generate_user_agent():
         logger.warning(f"Error occurred during getting browser: {e}, using fallback User-Agent.")
         return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
+# Fungsi untuk mem-parsing string proxy
+def parse_proxy(proxy):
+    parsed = urlparse(proxy)
+    if parsed.scheme not in ["http", "https", "socks5"]:
+        raise ValueError(f"Unsupported proxy scheme: {parsed.scheme}")
+
+    if not parsed.hostname or not parsed.port or not parsed.username or not parsed.password:
+        raise ValueError("Invalid proxy format. Please provide a complete proxy URL with username, password, host, and port.")
+
+    return {
+        "scheme": parsed.scheme,
+        "username": parsed.username,
+        "password": parsed.password,
+        "host": parsed.hostname,
+        "port": int(parsed.port)  # Convert port to integer
+    }
+
 async def connect_to_wss(socks5_proxy, user_id):
+    try:
+        proxy_info = parse_proxy(socks5_proxy)
+        logger.info(f"Parsed Proxy Info: {proxy_info}")
+    except ValueError as e:
+        logger.error(f"[{user_id}] Invalid proxy: {e}")
+        return
+
     device_id = generate_device_id(socks5_proxy)
     browser_id = generate_browser_id()
     random_user_agent = generate_user_agent()
